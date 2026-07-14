@@ -6,69 +6,109 @@ function escapeMarkdown(value = "") {
   return String(value).replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
 }
 
+function verdictMeta(verdict) {
+  if (verdict === "candidate") return { icon: "🟢", label: "候选机会", action: "可以做人工原型" };
+  if (verdict === "validate") return { icon: "🟡", label: "需要验证", action: "先访谈，不开发" };
+  return { icon: "⚪", label: "继续观察", action: "证据不足，不开发" };
+}
+
+function difficultyLabel(value) {
+  return value === "high" ? "🔴 高" : value === "low" ? "🟢 低" : "🟡 中";
+}
+
+function scoreBar(score) {
+  const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
+  return `${"█".repeat(filled)}${"░".repeat(10 - filled)} ${score}/100`;
+}
+
 export function renderReport(clusters, config, quality = {}) {
   const now = new Date().toISOString();
   const accepted = clusters.filter((cluster) => cluster.score >= (config.minScore || 0));
+  const verdictCounts = accepted.reduce((counts, cluster) => {
+    counts[cluster.opportunity.verdict] = (counts[cluster.opportunity.verdict] || 0) + 1;
+    return counts;
+  }, {});
+  const top = accepted[0];
+  const topMeta = top ? verdictMeta(top.opportunity.verdict) : null;
+  const weeklyConclusion = !top
+    ? "本周没有达到最低分的需求。不要开发，先扩大样本。"
+    : top.opportunity.verdict === "candidate"
+      ? `本周最值得关注的是「${top.topic}」。先找 5 位用户做人工验证，再决定是否开发。`
+      : top.opportunity.verdict === "validate"
+        ? `本周信号最高的是「${top.topic}」，但证据仍不够。先打开原文并补足用户访谈。`
+        : `本周只有弱信号。最高项是「${top.topic}」，暂时不要进入开发。`;
   const lines = [
-    `# ${config.projectName || "Demand Radar"}`,
+    `# 📡 ${config.projectName || "Demand Radar"}`,
     "",
-    `生成时间：${now}`,
-    `观察窗口：最近 ${config.days || 30} 天`,
-    `候选需求：${accepted.length} 个（共 ${clusters.length} 个聚类）`,
-    `原始候选：${quality.total ?? "未知"} 条；通过严格过滤：${quality.accepted ?? "未知"} 条；拒绝：${quality.rejected ?? "未知"} 条`,
+    `> **本周结论：${weeklyConclusion}**`,
     "",
-    "## 过滤结果",
+    `生成时间：${now.slice(0, 10)} · 观察窗口：最近 ${config.days || 30} 天`,
     "",
-    ...(quality.rejectionReasons ? Object.entries(quality.rejectionReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `- ${reason}：${count}`) : ["- 本次未提供过滤统计。"]),
+    "## 👀 一眼看懂",
     "",
-    "## 排名",
+    "| 原始评论 | 有效问题 | 进入榜单 | 🟢 候选机会 | 🟡 需要验证 | ⚪ 继续观察 |",
+    "|---:|---:|---:|---:|---:|---:|",
+    `| ${quality.total ?? "-"} | ${quality.accepted ?? "-"} | ${accepted.length} | ${verdictCounts.candidate || 0} | ${verdictCounts.validate || 0} | ${verdictCounts.watch || 0} |`,
     "",
-    "| 排名 | 用户群 | 问题主题 | 需求分 | 独立用户 | 平台 | 付费信号 | 建议 |",
-    "|---:|---|---|---:|---:|---|---:|---|"
+    "### 你现在该做什么",
+    "",
+    ...(top ? [
+      `1. 打开排名第一的「${top.topic}」原始证据，确认它是不是目标用户本人遇到的问题。`,
+      `2. 补齐：${top.opportunity.missingEvidence.length ? top.opportunity.missingEvidence.join("、") : "5 次用户访谈"}。`,
+      `3. 当前动作：**${topMeta.icon} ${topMeta.action}**。`
+    ] : ["1. 不开发。", "2. 调整关键词或增加数据源后再观察一周。"]),
+    "",
+    "## 🏆 需求排名",
+    "",
+    "| 排名 | 状态 | 问题主题 | 需求强度 | 用户数 | 付费信号 | 开发难度 |",
+    "|---:|---|---|---:|---:|---|---|"
   ];
   accepted.forEach((cluster, index) => {
-    lines.push(`| ${index + 1} | ${escapeMarkdown(cluster.audienceId)} | ${escapeMarkdown(cluster.topic)} | ${cluster.score}/100 | ${cluster.uniqueAuthors} | ${cluster.platforms.join(", ")} | ${cluster.explicitPayments} | ${cluster.opportunity.verdict} |`);
+    const meta = verdictMeta(cluster.opportunity.verdict);
+    lines.push(`| ${index + 1} | ${meta.icon} ${meta.label} | ${escapeMarkdown(cluster.topic)} | ${cluster.score}/100 | ${cluster.uniqueAuthors} | ${cluster.explicitPayments ? `✅ ${cluster.explicitPayments}` : "❌ 0"} | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
   });
 
   for (const [index, cluster] of accepted.entries()) {
-    lines.push("", `## ${index + 1}. ${cluster.topic}`, "");
-    lines.push(`- 用户群：${cluster.audienceId}`);
-    lines.push(`- 需求评分：${cluster.score}/100`);
-    lines.push(`- 独立用户：${cluster.uniqueAuthors}`);
-    lines.push(`- 平台：${cluster.platforms.join(", ")}`);
-    lines.push(`- 明确价格/付费信号：${cluster.explicitPayments}`);
-    lines.push(`- 临时方案信号：${cluster.workarounds}`);
-    lines.push(`- 高频发生信号：${cluster.frequent}`);
-    lines.push(`- 高严重度信号：${cluster.highSeverity}`);
-    lines.push(`- 评分拆分：独立用户 ${cluster.scoreBreakdown.independentUsers}/30，跨平台 ${cluster.scoreBreakdown.crossPlatform}/10，付费 ${cluster.scoreBreakdown.payment}/15，临时方案 ${cluster.scoreBreakdown.workaround}/15，频率 ${cluster.scoreBreakdown.frequency}/15，严重度 ${cluster.scoreBreakdown.severity}/10，证据质量 ${cluster.scoreBreakdown.evidenceQuality}/5`);
+    const meta = verdictMeta(cluster.opportunity.verdict);
+    lines.push("", `## ${index + 1}. ${meta.icon} ${cluster.topic}`, "");
+    lines.push(`> **${meta.label}：${meta.action}**`);
+    lines.push("", `**需求强度**　\`${scoreBar(cluster.score)}\``, "");
+    lines.push("| 关键信号 | 结果 |", "|---|---|");
+    lines.push(`| 目标用户 | ${escapeMarkdown(cluster.audienceId)} |`);
+    lines.push(`| 独立用户 | ${cluster.uniqueAuthors} 位 |`);
+    lines.push(`| 数据来源 | ${cluster.platforms.join(", ")} |`);
+    lines.push(`| 明确付费 | ${cluster.explicitPayments ? `✅ ${cluster.explicitPayments} 条` : "❌ 暂无"} |`);
+    lines.push(`| 高频发生 | ${cluster.frequent ? `✅ ${cluster.frequent} 条` : "❌ 暂无"} |`);
+    lines.push(`| 临时方案 | ${cluster.workarounds ? `✅ ${cluster.workarounds} 条` : "❌ 暂无"} |`);
+    lines.push(`| 个人开发难度 | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
 
-    lines.push("", "### 产品机会卡（待验证假设）", "");
-    lines.push(`- 当前建议：${cluster.opportunity.verdict}`);
-    lines.push(`- 个人开发难度：${cluster.opportunity.soloDifficulty}`);
-    lines.push(`- 最窄 MVP 假设：${cluster.opportunity.mvpHypothesis}`);
-    lines.push(`- 最大实现风险：${cluster.opportunity.primaryRisk}`);
-    lines.push(`- 实现约束：${cluster.opportunity.buildConstraints.join("；")}`);
-    lines.push(`- 仍缺证据：${cluster.opportunity.missingEvidence.length ? cluster.opportunity.missingEvidence.join("；") : "核心信号已齐，仍需访谈验证"}`);
+    lines.push("", "### 💡 最窄实现方案", "");
+    lines.push(`**MVP 假设：** ${cluster.opportunity.mvpHypothesis}`);
+    lines.push("", `**最大风险：** ${cluster.opportunity.primaryRisk}`);
+    lines.push("", `**必须遵守：** ${cluster.opportunity.buildConstraints.join("；")}`);
+    lines.push("", `**开发前还缺：** ${cluster.opportunity.missingEvidence.length ? cluster.opportunity.missingEvidence.join("；") : "核心信号已齐，仍需完成用户访谈"}`);
 
-    lines.push("", "### 原始证据", "");
+    lines.push("", `<details><summary><strong>🔎 查看 ${Math.min(cluster.items.length, config.maxEvidencePerCluster || 10)} 条原始证据</strong></summary>`, "");
     for (const item of cluster.items.slice(0, config.maxEvidencePerCluster || 10)) {
       const quote = escapeMarkdown(item.evidenceQuote || item.pain || "");
       const date = item.publishedAt ? item.publishedAt.slice(0, 10) : "日期未知";
       const engagement = item.engagement || {};
-      lines.push(`- ${date} · ${item.severity || "unknown"} · 👍 ${engagement.likes || 0} / 回复 ${engagement.comments || 0}：“${quote}” — [${item.platform} 原文](${item.sourceUrl})（置信度 ${item.confidence}）`);
+      lines.push(`- **${date} · ${item.platform}**：&ldquo;${quote}&rdquo; [打开原文 ↗](${item.sourceUrl}) · 👍 ${engagement.likes || 0} · 回复 ${engagement.comments || 0}`);
     }
+    lines.push("", "</details>");
     if (cluster.uniqueAuthors < 3) {
-      lines.push("", "> 当前证据不足 3 个独立用户，只适合继续观察或访谈，不建议直接开发。");
+      lines.push("", "> ⚠️ 当前证据不足 3 个独立用户，只适合继续观察或访谈，不建议直接开发。");
     } else if (cluster.platforms.length < 2) {
-      lines.push("", "> 信号只来自一个平台，建议去第二个平台交叉验证。 ");
+      lines.push("", "> ⚠️ 信号只来自一个平台，建议去第二个平台交叉验证。 ");
     }
   }
 
-  lines.push("", "## 阅读规则", "");
-  lines.push("- 需求分用于排序，不代表市场规模；机会卡也只是待验证假设。");
-  lines.push("- `watch` 只观察，`validate` 先访谈，`candidate` 才值得做人工原型。");
-  lines.push("- 没有原文链接的结论不应进入开发决策。");
-  lines.push("- 至少 3 个独立用户，并完成 5 次访谈或落地页验证后，再决定是否开发。");
+  lines.push("", "<details><summary><strong>🧹 查看过滤统计与评分说明</strong></summary>", "");
+  lines.push("**过滤结果**");
+  lines.push("", ...(quality.rejectionReasons ? Object.entries(quality.rejectionReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `- ${reason}：${count}`) : ["- 本次未提供过滤统计。"]));
+  lines.push("", "**阅读规则**");
+  lines.push("", "- 需求分只用于同一批线索排序，不代表市场规模。", "- 🟢 才值得做人工原型；🟡 先访谈；⚪ 只观察。", "- 没有原文链接的结论不进入开发决策。", "- 至少 3 个独立用户并完成 5 次访谈后，再决定是否开发。", "", "</details>");
+  lines.push("", "---", "", "### 💬 给雷达反馈", "", "在 Issue 下留言即可，例如：`需求 1：值得验证`、`需求 2：误报`、`下周继续观察库存问题`。");
   return lines.join("\n") + "\n";
 }
 

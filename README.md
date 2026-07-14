@@ -92,6 +92,8 @@ npm run report
 
 机会卡中的 MVP 是“待验证假设”，默认约束为只读、单一输入路径、先服务 5 位用户，不等于已经证明应该开发。
 
+报告采用“先结论、再排名、最后看证据”的结构：顶部直接告诉你本周要不要行动，榜单使用 🟢/🟡/⚪ 状态、100 分需求强度和开发难度，原始证据默认折叠，需要时再展开。
+
 重复运行时会按平台内容 ID 去重。
 
 ## 5. 可选接入大模型
@@ -116,7 +118,9 @@ LLM_MODEL=your-model
 - 某个问题达到 3 个独立用户后：找 5～10 个用户访谈。
 - 出现明确付费、现有替代方案和高频场景后：再做落地页或极窄 MVP。
 
-仓库已经包含 `.github/workflows/weekly-demand-radar.yml`。推送到 GitHub 并把 API 凭据配置成 Actions Secrets 后，它会在每周一北京时间上午运行，并把报告作为 Artifact 保存 30 天；也可以从 Actions 页面手动触发。
+仓库已经包含 `.github/workflows/weekly-demand-radar.yml`。推送到 GitHub 并把 API 凭据配置成 Actions Secrets 后，它会在每周一北京时间上午运行，并自动创建当天的 `需求雷达周报｜YYYY-MM-DD` GitHub Issue；同一天重复运行会更新原 Issue，不会重复创建。报告也会作为 Artifact 保存 30 天。
+
+日常只需要打开仓库的 **Issues** 页面阅读周报。可以直接在周报下面留言：`需求 1：值得验证`、`需求 2：误报` 或 `下周继续观察库存问题`。
 
 ## 当前边界
 

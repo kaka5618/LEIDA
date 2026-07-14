@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   radar:
@@ -43,6 +44,25 @@ jobs:
           LLM_API_URL: ${{ secrets.LLM_API_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
         run: npm run run
+
+      - name: Publish visual report to GitHub Issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPORT_FILE="$(find reports -maxdepth 1 -type f -name '*.md' | sort | tail -n 1)"
+          REPORT_DATE="$(basename "$REPORT_FILE" .md)"
+          ISSUE_TITLE="需求雷达周报｜${REPORT_DATE}"
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          printf '\n---\n\n[查看本次自动运行记录 ↗](%s)\n' "$RUN_URL" >> "$REPORT_FILE"
+          gh label create demand-radar --color 1D76DB --description "自动生成的海外需求雷达周报" --force
+
+          ISSUE_NUMBER="$(gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 100 --json number,title --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -n 1)"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$REPORT_FILE" --add-label demand-radar
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --body-file "$REPORT_FILE" --label demand-radar
+          fi
 
       - name: Upload research report
         uses: actions/upload-artifact@v5
