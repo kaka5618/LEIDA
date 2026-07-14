@@ -1,0 +1,18 @@
+{
+  "name": "demand-radar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node src/cli.mjs demo",
+    "doctor": "node src/cli.mjs doctor",
+    "collect": "node src/cli.mjs collect",
+    "analyze": "node src/cli.mjs analyze",
+    "report": "node src/cli.mjs report",
+    "run": "node src/cli.mjs run",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

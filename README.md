@@ -1,0 +1,133 @@
+# Demand Radar（海外真实需求雷达）
+
+面向个人开发者的轻量需求研究工具。它从 Reddit 和 YouTube 收集近期公开讨论，提取有原文证据的问题，按独立用户数、跨平台出现、付费信号、临时方案、发生频率、严重度和证据质量生成 100 分制排序，最终输出 Markdown 报告与受约束的产品机会卡。
+
+第一版故意不做网页、不使用数据库，也不自动生成产品点子。目标是先验证“这套采集方式能不能持续找到有价值的问题”。
+
+## 1. 先运行演示
+
+环境要求：Node.js 20 或更高版本。
+
+```bash
+npm run demo
+```
+
+执行后查看 `reports/当天日期.md`。演示数据包含 3 条相互印证的库存同步问题和 1 条应被拒绝的空泛讨论。
+
+## 2. 配置自己的用户群
+
+```bash
+cp config.example.json config.json
+cp .env.example .env
+```
+
+编辑 `config.json`：
+
+- `audiences`：要研究的明确用户群，第一版建议不超过 3 个。
+- `topics`：这些人正在完成的具体工作，不要写宽泛行业词。
+- `painPhrases`：真实用户可能使用的英文痛点句式。
+- `reddit.subreddits`：垂直社区，建议每个用户群 3～10 个。
+- `minScore`：进入报告的最低需求分（0～100，建议先用 25）。
+- `maxEvidencePerCluster`：每个问题最多展示多少条原始证据。
+
+一个查询由 `topic × painPhrase` 组成。查询数会直接影响 Reddit 请求量，所以每个用户群建议从 3 个 topic、6～8 个 pain phrase 开始。
+
+## 3. 配置数据源
+
+### YouTube
+
+在 Google Cloud 项目中启用 YouTube Data API v3，把 API Key 写入 `.env`：
+
+```dotenv
+YOUTUBE_API_KEY=your_key
+```
+
+程序会查找主题相关的视频，但只保留最近 30 天发布的顶层评论；这样也能从长期有效的视频下面发现近期需求。明显的赞美短句、联系方式垃圾内容和金融诈骗话术会在采集阶段先被剔除，评论关闭的视频会自动跳过。
+
+### Reddit
+
+创建获得许可的 Reddit OAuth 应用，把凭据写入 `.env`：
+
+```dotenv
+REDDIT_CLIENT_ID=your_client_id
+REDDIT_CLIENT_SECRET=your_client_secret
+REDDIT_USER_AGENT=demand-radar/0.1 by your-reddit-username
+```
+
+使用 Reddit 数据前请确认你的用途符合 Reddit Data API 条款。不要把抓取到的用户内容公开转售，也不要用于训练模型。原始内容只应短期保存，并保留原帖 URL 供人工核验。
+
+## 4. 运行完整流程
+
+先检查哪些数据源已经可以使用：
+
+```bash
+npm run doctor
+```
+
+再运行完整流程：
+
+```bash
+npm run run
+```
+
+也可以分步执行：
+
+```bash
+npm run collect
+npm run analyze
+npm run report
+```
+
+产生的文件：
+
+- `data/raw.jsonl`：标准化后的原始帖子和评论。
+- `data/signals.jsonl`：需求判断、证据和评分字段。
+- `reports/YYYY-MM-DD.md`：按分数排序的需求报告。
+
+报告里的机会卡分为：
+
+- `watch`：证据太少，只观察。
+- `validate`：已有至少 2 位独立用户，先访谈。
+- `candidate`：证据较完整，可以做人工服务或极窄只读原型。
+
+机会卡中的 MVP 是“待验证假设”，默认约束为只读、单一输入路径、先服务 5 位用户，不等于已经证明应该开发。
+
+重复运行时会按平台内容 ID 去重。
+
+## 5. 可选接入大模型
+
+默认使用保守的规则分析器，因此不需要模型 Key。它适合验证采集链路，但理解复杂语义的能力有限。
+
+如需使用兼容 OpenAI Chat Completions 请求格式的服务，配置：
+
+```dotenv
+LLM_API_KEY=your_key
+LLM_API_URL=https://your-provider.example/v1/chat/completions
+LLM_MODEL=your-model
+```
+
+模型必须返回 `prompts/extract-demand.txt` 指定的 JSON。系统还会进行二次校验：如果模型给出的 `evidenceQuote` 不是原文的精确子串，该次结果会被丢弃并回退到规则分析器。这可以显著减少“AI 自己补充需求”的情况。
+
+## 6. 推荐的日常节奏
+
+- 每天：定时运行一次 `npm run run`。
+- 每周：人工阅读排名前 10 的原帖，标记误报。
+- 连续两周：只调整关键词和社区，不急着开发产品。
+- 某个问题达到 3 个独立用户后：找 5～10 个用户访谈。
+- 出现明确付费、现有替代方案和高频场景后：再做落地页或极窄 MVP。
+
+仓库已经包含 `.github/workflows/weekly-demand-radar.yml`。推送到 GitHub 并把 API 凭据配置成 Actions Secrets 后，它会在每周一北京时间上午运行，并把报告作为 Artifact 保存 30 天；也可以从 Actions 页面手动触发。
+
+## 当前边界
+
+- Reddit 第一版只分析帖子正文，尚未展开抓取帖子评论。
+- YouTube 第一版只分析顶层评论。
+- 聚类依据配置中的 topic，而不是语义向量；因此 topic 必须足够具体。
+- X 尚未接入。建议先连续运行 Reddit + YouTube 两周，确认信息质量，再决定是否承担 X 的接口成本。
+- 当前报告是研究线索，不是市场规模证明，也不能代替用户访谈；100 分制只用于同一批线索内部排序。
+
+## 测试
+
+```bash
+npm test
+```

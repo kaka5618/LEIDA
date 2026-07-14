@@ -1,0 +1,54 @@
+[
+  {
+    "id": "demo-reddit-1",
+    "platform": "reddit",
+    "audienceId": "small-shopify-merchants",
+    "query": "inventory sync manual process",
+    "community": "r/shopify",
+    "publishedAt": "2026-07-08T09:00:00.000Z",
+    "sourceUrl": "https://www.reddit.com/r/shopify/example1",
+    "title": "How do you keep inventory in sync?",
+    "text": "I run a small Shopify store and manually copy inventory numbers from my supplier spreadsheet every Friday. It takes two hours and I keep making mistakes. Is there a simple tool for this that isn't $200 a month?",
+    "authorHash": "demo-a1",
+    "engagement": { "likes": 18, "comments": 12 }
+  },
+  {
+    "id": "demo-youtube-1",
+    "platform": "youtube",
+    "audienceId": "small-shopify-merchants",
+    "query": "Shopify inventory sync",
+    "community": "Example channel",
+    "publishedAt": "2026-07-10T14:00:00.000Z",
+    "sourceUrl": "https://www.youtube.com/watch?v=example&lc=comment1",
+    "title": "Comment on Shopify inventory workflow",
+    "text": "I have the same problem. Every week I export a CSV and update stock by hand. The apps I tried cost more than my store makes some months.",
+    "authorHash": "demo-a2",
+    "engagement": { "likes": 7, "comments": 2 }
+  },
+  {
+    "id": "demo-reddit-2",
+    "platform": "reddit",
+    "audienceId": "small-shopify-merchants",
+    "query": "\"inventory sync\" \"too expensive\"",
+    "community": "r/ecommerce",
+    "publishedAt": "2026-07-12T17:00:00.000Z",
+    "sourceUrl": "https://www.reddit.com/r/ecommerce/example2",
+    "title": "Inventory apps for a tiny store?",
+    "text": "We still use Google Sheets to reconcile supplier stock with Shopify twice a week. Existing inventory platforms are too expensive for our 40 orders a month. What do other tiny stores use?",
+    "authorHash": "demo-a3",
+    "engagement": { "likes": 11, "comments": 8 }
+  },
+  {
+    "id": "demo-noise-1",
+    "platform": "reddit",
+    "audienceId": "small-shopify-merchants",
+    "query": "Shopify",
+    "community": "r/shopify",
+    "publishedAt": "2026-07-13T10:00:00.000Z",
+    "sourceUrl": "https://www.reddit.com/r/shopify/noise",
+    "title": "Shopify is cool",
+    "text": "I think ecommerce is the future. What do you think?",
+    "authorHash": "demo-a4",
+    "engagement": { "likes": 50, "comments": 30 }
+  }
+]

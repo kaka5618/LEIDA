@@ -1,0 +1,34 @@
+{
+  "projectName": "Small Shopify Merchant Demand Radar",
+  "days": 30,
+  "language": "en",
+  "region": "US",
+  "minScore": 25,
+  "maxEvidencePerCluster": 8,
+  "maxItemsPerQuery": 25,
+  "audiences": [
+    {
+      "id": "small-shopify-merchants",
+      "name": "Small Shopify merchants with roughly 10-500 monthly orders",
+      "topics": ["Shopify inventory", "Shopify returns", "Shopify order reconciliation"],
+      "painPhrases": [
+        "is there a tool",
+        "looking for a tool",
+        "takes too long",
+        "too expensive",
+        "manual process",
+        "using spreadsheets",
+        "I wish there was",
+        "how do you"
+      ],
+      "reddit": {
+        "subreddits": ["shopify", "ecommerce", "smallbusiness", "Entrepreneur", "dropshipping"]
+      },
+      "youtube": {
+        "enabled": true,
+        "maxVideosPerQuery": 10,
+        "searchModifiers": ["problem", "alternative", "workflow"]
+      }
+    }
+  ]
+}

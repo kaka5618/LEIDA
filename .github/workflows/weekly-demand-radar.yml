@@ -1,0 +1,54 @@
+name: Weekly Demand Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 1 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare research configuration
+        run: cp config.example.json config.json
+
+      - name: Check configuration
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: npm run doctor
+
+      - name: Collect, analyze and report
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: npm run run
+
+      - name: Upload research report
+        uses: actions/upload-artifact@v4
+        with:
+          name: demand-radar-${{ github.run_id }}
+          path: |
+            reports/*.md
+            data/signals.jsonl
+          retention-days: 30

@@ -1,0 +1,6 @@
+.env
+config.json
+data/*.jsonl
+reports/*.md
+!data/.gitkeep
+!reports/.gitkeep
