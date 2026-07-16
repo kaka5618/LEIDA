@@ -47,7 +47,7 @@ export async function collectReddit(config, onProgress = () => {}) {
           q: query,
           restrict_sr: "1",
           sort: "new",
-          t: config.days <= 7 ? "week" : "month",
+          t: config.days <= 7 ? "week" : config.days <= 31 ? "month" : "year",
           limit: String(config.maxItemsPerQuery || 25),
           raw_json: "1"
         });
@@ -59,6 +59,7 @@ export async function collectReddit(config, onProgress = () => {}) {
             id: `reddit-${post.id}`,
             platform: "reddit",
             audienceId: audience.id,
+            topic: audience.topics?.find((topic) => query.includes(topic)) || "Unclassified",
             query,
             community: `r/${post.subreddit}`,
             publishedAt: new Date(post.created_utc * 1000).toISOString(),
@@ -87,19 +88,13 @@ export async function collectYouTube(config, onProgress = () => {}) {
   const seenVideoIds = new Set();
   let skippedNoise = 0;
   const cutoff = new Date(daysAgoIso(config.days || 30)).getTime();
-  const relevancePatterns = (topic) => {
-    const lower = topic.toLowerCase();
-    if (lower.includes("inventory")) return [/inventory|stock/i];
-    if (lower.includes("return")) return [/returns?|refund|rma/i];
-    if (lower.includes("reconciliation")) return [/reconcil|accounting|bookkeeping|payout/i];
-    return [new RegExp(topic.split(/\s+/).filter((word) => word.toLowerCase() !== "shopify").join("|"), "i")];
-  };
+  const containsAny = (text, terms = []) => terms.some((term) => text.includes(String(term).toLowerCase()));
   for (const audience of config.audiences || []) {
     if (audience.youtube?.enabled === false) continue;
     for (const topic of audience.topics || []) {
-      const modifiers = audience.youtube?.searchModifiers || [""];
-      for (const modifier of modifiers) {
-      const query = [topic, modifier].filter(Boolean).join(" ");
+      const explicitQueries = audience.youtube?.topicSearchQueries?.[topic];
+      const queries = explicitQueries || (audience.youtube?.searchModifiers || [""]).map((modifier) => [topic, modifier].filter(Boolean).join(" "));
+      for (const query of queries) {
       const search = new URLSearchParams({
         key,
         part: "snippet",
@@ -116,7 +111,10 @@ export async function collectYouTube(config, onProgress = () => {}) {
         const videoId = video.id?.videoId;
         if (!videoId || seenVideoIds.has(videoId)) continue;
         const videoContext = `${video.snippet?.title || ""} ${video.snippet?.description || ""}`;
-        const relevant = /shopify/i.test(videoContext) && relevancePatterns(topic).some((pattern) => pattern.test(videoContext));
+        const normalizedContext = videoContext.toLowerCase();
+        const contextTerms = audience.requiredContextTerms || ["shopify", "etsy", "ecommerce", "online store"];
+        const topicTerms = audience.topicKeywords?.[topic] || [topic];
+        const relevant = containsAny(normalizedContext, contextTerms) && containsAny(normalizedContext, topicTerms);
         if (!relevant) continue;
         seenVideoIds.add(videoId);
         const comments = new URLSearchParams({
@@ -147,6 +145,7 @@ export async function collectYouTube(config, onProgress = () => {}) {
               id: `youtube-${item.id}`,
               platform: "youtube",
               audienceId: audience.id,
+              topic,
               query,
               community: video.snippet?.channelTitle || "YouTube",
               publishedAt: comment.publishedAt,
@@ -182,6 +181,7 @@ export function normalizeImported(item, audienceId = "imported") {
     id: item.id || `imported-${stableId(item.sourceUrl || item.url || "", text)}`,
     platform: item.platform || "imported",
     audienceId: item.audienceId || audienceId,
+    topic: item.topic,
     query: item.query || "manual import",
     community: item.community || "",
     publishedAt: item.publishedAt || new Date().toISOString(),

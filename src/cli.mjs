@@ -37,7 +37,7 @@ async function analyze(config) {
 async function report(config) {
   const signals = await readJsonl(SIGNAL_FILE);
   if (!signals.length) throw new Error("data/signals.jsonl 为空，请先运行 analyze 或 demo");
-  const clusters = clusterSignals(signals);
+  const clusters = clusterSignals(signals, config);
   const rejected = signals.filter((signal) => !signal.isRealProblem);
   const quality = {
     total: signals.length,

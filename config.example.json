@@ -1,33 +1,79 @@
 {
-  "projectName": "Small Shopify Merchant Demand Radar",
-  "days": 30,
+  "projectName": "Solo E-commerce Tool Demand Radar",
+  "days": 90,
+  "freshnessDays": 30,
   "language": "en",
   "region": "US",
-  "minScore": 25,
+  "minScore": 15,
+  "soloFitMinimum": 70,
   "maxEvidencePerCluster": 8,
   "maxItemsPerQuery": 25,
   "audiences": [
     {
-      "id": "small-shopify-merchants",
-      "name": "Small Shopify merchants with roughly 10-500 monthly orders",
-      "topics": ["Shopify inventory", "Shopify returns", "Shopify order reconciliation"],
+      "id": "small-overseas-ecommerce-sellers",
+      "name": "Small Shopify, Etsy and Google Shopping sellers",
+      "topics": [
+        "product image compliance and batch processing",
+        "product listing audit and optimization",
+        "product catalog and CSV cleanup",
+        "review and return reason analysis"
+      ],
+      "requiredContextTerms": [
+        "shopify", "etsy", "google shopping", "merchant center", "ecommerce",
+        "online store", "product listing", "seller"
+      ],
+      "topicKeywords": {
+        "product image compliance and batch processing": [
+          "product image", "product photo", "listing photo", "image size", "resize", "background", "watermark", "crop", "aspect ratio", "variant image", "bulk image"
+        ],
+        "product listing audit and optimization": [
+          "product listing", "listing title", "product title", "product description", "product attributes", "alt text", "seo title", "listing optimization"
+        ],
+        "product catalog and CSV cleanup": [
+          "product csv", "catalog cleanup", "duplicate sku", "product variants", "bulk edit products", "image url", "csv import"
+        ],
+        "review and return reason analysis": [
+          "product reviews", "customer questions", "return reasons", "refund reasons", "product complaint", "quality complaint", "faq", "size complaints", "color mismatch"
+        ]
+      },
+      "topicEvidenceKeywords": {
+        "product image compliance and batch processing": ["image", "photo", "picture", "resize", "background", "watermark", "crop"],
+        "product listing audit and optimization": ["listing", "title", "description", "attribute", "alt text", "keyword"],
+        "product catalog and CSV cleanup": ["csv", "sku", "variant", "catalog", "bulk edit", "image url"],
+        "review and return reason analysis": ["review", "return reason", "refund reason", "complaint", "customer question", "faq"]
+      },
       "painPhrases": [
-        "is there a tool",
-        "looking for a tool",
-        "takes too long",
-        "too expensive",
-        "manual process",
-        "using spreadsheets",
-        "I wish there was",
-        "how do you"
+        "is there a tool", "looking for a tool", "takes too long", "too expensive",
+        "manual process", "using spreadsheets", "I wish there was", "how do you"
       ],
       "reddit": {
-        "subreddits": ["shopify", "ecommerce", "smallbusiness", "Entrepreneur", "dropshipping"]
+        "subreddits": ["shopify", "EtsySellers", "ecommerce", "AmazonSeller", "smallbusiness"]
       },
       "youtube": {
         "enabled": true,
-        "maxVideosPerQuery": 10,
-        "searchModifiers": ["problem", "alternative", "workflow"]
+        "maxVideosPerQuery": 8,
+        "topicSearchQueries": {
+          "product image compliance and batch processing": [
+            "Shopify product image resize problem",
+            "Etsy listing photo size problem",
+            "Google Merchant Center image disapproved"
+          ],
+          "product listing audit and optimization": [
+            "Shopify product listing title problem",
+            "Etsy listing optimization problem",
+            "Google Merchant product title disapproved"
+          ],
+          "product catalog and CSV cleanup": [
+            "Shopify CSV import error",
+            "Shopify product variant CSV bulk edit",
+            "ecommerce duplicate SKU problem"
+          ],
+          "review and return reason analysis": [
+            "Shopify return reasons analysis",
+            "ecommerce product review analysis",
+            "Etsy customer complaint product quality"
+          ]
+        }
       }
     }
   ]

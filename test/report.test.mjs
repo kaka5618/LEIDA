@@ -43,6 +43,9 @@ test("renders a visual summary, action guidance and collapsible evidence", () =>
   assert.match(report, /👀 一眼看懂/);
   assert.match(report, /🟢 候选机会/);
   assert.match(report, /你现在该做什么/);
+  assert.match(report, /个人开发适配/);
+  assert.match(report, /近30天证据/);
+  assert.match(report, /超出能力边界/);
   assert.match(report, /<details><summary><strong>🔎 查看 3 条原始证据/);
   assert.match(report, /给雷达反馈/);
 });

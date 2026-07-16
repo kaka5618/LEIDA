@@ -42,7 +42,7 @@ export function renderReport(clusters, config, quality = {}) {
     "",
     `> **本周结论：${weeklyConclusion}**`,
     "",
-    `生成时间：${now.slice(0, 10)} · 观察窗口：最近 ${config.days || 30} 天`,
+    `生成时间：${now.slice(0, 10)} · 样本窗口：最近 ${config.days || 90} 天 · 新鲜度窗口：最近 ${config.freshnessDays || 30} 天`,
     "",
     "## 👀 一眼看懂",
     "",
@@ -60,27 +60,30 @@ export function renderReport(clusters, config, quality = {}) {
     "",
     "## 🏆 需求排名",
     "",
-    "| 排名 | 状态 | 问题主题 | 需求强度 | 用户数 | 付费信号 | 开发难度 |",
-    "|---:|---|---|---:|---:|---|---|"
+    `| 排名 | 状态 | 问题主题 | 需求强度 | 个人适配 | 近${config.freshnessDays || 30}天证据 | 用户数 | 开发难度 |`,
+    "|---:|---|---|---:|---:|---:|---:|---|"
   ];
   accepted.forEach((cluster, index) => {
     const meta = verdictMeta(cluster.opportunity.verdict);
-    lines.push(`| ${index + 1} | ${meta.icon} ${meta.label} | ${escapeMarkdown(cluster.topic)} | ${cluster.score}/100 | ${cluster.uniqueAuthors} | ${cluster.explicitPayments ? `✅ ${cluster.explicitPayments}` : "❌ 0"} | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
+    lines.push(`| ${index + 1} | ${meta.icon} ${meta.label} | ${escapeMarkdown(cluster.topic)} | ${cluster.score}/100 | ${cluster.opportunity.soloFitScore}/100 | ${cluster.recentSignals} | ${cluster.uniqueAuthors} | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
   });
 
   for (const [index, cluster] of accepted.entries()) {
     const meta = verdictMeta(cluster.opportunity.verdict);
     lines.push("", `## ${index + 1}. ${meta.icon} ${cluster.topic}`, "");
     lines.push(`> **${meta.label}：${meta.action}**`);
-    lines.push("", `**需求强度**　\`${scoreBar(cluster.score)}\``, "");
+    lines.push("", `**需求强度**　\`${scoreBar(cluster.score)}\``);
+    lines.push(`**个人开发适配**　\`${scoreBar(cluster.opportunity.soloFitScore)}\``, "");
     lines.push("| 关键信号 | 结果 |", "|---|---|");
     lines.push(`| 目标用户 | ${escapeMarkdown(cluster.audienceId)} |`);
     lines.push(`| 独立用户 | ${cluster.uniqueAuthors} 位 |`);
+    lines.push(`| 近 ${config.freshnessDays || 30} 天证据 | ${cluster.recentSignals} 条 |`);
     lines.push(`| 数据来源 | ${cluster.platforms.join(", ")} |`);
     lines.push(`| 明确付费 | ${cluster.explicitPayments ? `✅ ${cluster.explicitPayments} 条` : "❌ 暂无"} |`);
     lines.push(`| 高频发生 | ${cluster.frequent ? `✅ ${cluster.frequent} 条` : "❌ 暂无"} |`);
     lines.push(`| 临时方案 | ${cluster.workarounds ? `✅ ${cluster.workarounds} 条` : "❌ 暂无"} |`);
     lines.push(`| 个人开发难度 | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
+    lines.push(`| 超出能力边界 | ${cluster.opportunity.hardExclusions.length ? `⛔ ${cluster.opportunity.hardExclusions.join("、")}` : "✅ 未触发"} |`);
 
     lines.push("", "### 💡 最窄实现方案", "");
     lines.push(`**MVP 假设：** ${cluster.opportunity.mvpHypothesis}`);
@@ -107,7 +110,7 @@ export function renderReport(clusters, config, quality = {}) {
   lines.push("**过滤结果**");
   lines.push("", ...(quality.rejectionReasons ? Object.entries(quality.rejectionReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `- ${reason}：${count}`) : ["- 本次未提供过滤统计。"]));
   lines.push("", "**阅读规则**");
-  lines.push("", "- 需求分只用于同一批线索排序，不代表市场规模。", "- 🟢 才值得做人工原型；🟡 先访谈；⚪ 只观察。", "- 没有原文链接的结论不进入开发决策。", "- 至少 3 个独立用户并完成 5 次访谈后，再决定是否开发。", "", "</details>");
+  lines.push("", "- 需求强度和个人开发适配度是两套分数，不能互相替代。", "- 需求分只用于同一批线索排序，不代表市场规模。", "- 🟢 必须同时满足：需求分至少 60、个人适配至少 70、3 位独立用户，并且没有硬性排除项。", "- 实时同步、自动退款/定价、会计税务、大规模抓取、广告自动化会被硬性降为观察。", "- 没有原文链接的结论不进入开发决策。", "", "</details>");
   lines.push("", "---", "", "### 💬 给雷达反馈", "", "在 Issue 下留言即可，例如：`需求 1：值得验证`、`需求 2：误报`、`下周继续观察库存问题`。");
   return lines.join("\n") + "\n";
 }

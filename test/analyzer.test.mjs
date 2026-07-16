@@ -71,6 +71,21 @@ test("does not treat a YouTube video title as comment evidence", () => {
   assert.equal(result.evidenceQuote, null);
 });
 
+test("rejects a YouTube business complaint that never mentions the configured board task", () => {
+  const focusedConfig = {
+    audiences: [{
+      id: "merchants",
+      topics: ["product image compliance and batch processing"],
+      topicEvidenceKeywords: { "product image compliance and batch processing": ["image", "photo", "picture", "resize"] }
+    }]
+  };
+  const youtubeItem = item("15", "My Etsy store still gets only one sale every two weeks and it doesn't work for everyone.", "youtube");
+  youtubeItem.topic = "product image compliance and batch processing";
+  const result = heuristicAnalyze(youtubeItem, focusedConfig);
+  assert.equal(result.isRealProblem, false);
+  assert.match(result.rejectionReason, /video context/);
+});
+
 test("rejects comments written by the YouTube publisher", () => {
   const youtubeItem = item("10", "We reconcile Shopify payouts every month and the clearing account keeps breaking, so we use QuickBooks manually.", "youtube");
   youtubeItem.authorIsCreator = true;
@@ -97,7 +112,32 @@ test("cluster score rewards independent authors and platforms", () => {
   assert.deepEqual(cluster.platforms.sort(), ["reddit", "youtube"]);
   assert.equal(cluster.strength, "strong");
   assert.ok(cluster.score >= 25 && cluster.score <= 100);
+  assert.equal(cluster.opportunity.verdict, "watch");
+  assert.ok(cluster.opportunity.soloFitScore < 70);
+  assert.match(cluster.opportunity.hardExclusions.join(" "), /实时或双向库存同步/);
+});
+
+test("promotes a strong CSV cleanup problem that fits a solo developer", () => {
+  const focusedConfig = {
+    freshnessDays: 30,
+    soloFitMinimum: 70,
+    audiences: [{ id: "merchants", topics: ["product catalog and CSV cleanup"] }]
+  };
+  const make = (id, text, platform, authorHash) => ({
+    ...item(id, text, platform, authorHash),
+    query: "product catalog and CSV cleanup",
+    title: "Product catalog CSV cleanup",
+    topic: "product catalog and CSV cleanup"
+  });
+  const signals = [
+    heuristicAnalyze(make("12", "I manually fix duplicate SKU values in our product CSV every week and it takes two hours. Is there a tool under $30?", "reddit", "a"), focusedConfig),
+    heuristicAnalyze(make("13", "Our store uses a spreadsheet to repair product variant rows every week because CSV import keeps failing and costs us time.", "youtube", "b"), focusedConfig),
+    heuristicAnalyze(make("14", "I copy missing image URL fields by hand every Friday and the catalog import keeps making mistakes.", "reddit", "c"), focusedConfig)
+  ];
+  const [cluster] = clusterSignals(signals, focusedConfig);
   assert.equal(cluster.opportunity.verdict, "candidate");
-  assert.equal(cluster.opportunity.soloDifficulty, "high");
-  assert.match(cluster.opportunity.mvpHypothesis, /只读库存差异检查器/);
+  assert.ok(cluster.opportunity.soloFitScore >= 90);
+  assert.equal(cluster.opportunity.hardExclusions.length, 0);
+  assert.equal(cluster.recentSignals, 3);
+  assert.match(cluster.opportunity.mvpHypothesis, /CSV 清洗器/);
 });
