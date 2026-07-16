@@ -16,6 +16,15 @@ function difficultyLabel(value) {
   return value === "high" ? "🔴 高" : value === "low" ? "🟢 低" : "🟡 中";
 }
 
+function topicLabel(topic = "") {
+  const lower = topic.toLowerCase();
+  if (/image|photo|background|watermark|resize|crop/.test(lower)) return "商品图合规与批处理";
+  if (/listing|title|description|attribute|alt text|seo/.test(lower)) return "Listing 体检与优化";
+  if (/catalog|csv|sku|variant|bulk edit|image url/.test(lower)) return "商品 CSV 清洗";
+  if (/review|return reason|refund reason|customer question|faq|complaint/.test(lower)) return "评论与退货原因分析";
+  return topic;
+}
+
 function scoreBar(score) {
   const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
   return `${"█".repeat(filled)}${"░".repeat(10 - filled)} ${score}/100`;
@@ -33,10 +42,10 @@ export function renderReport(clusters, config, quality = {}) {
   const weeklyConclusion = !top
     ? "本周没有达到最低分的需求。不要开发，先扩大样本。"
     : top.opportunity.verdict === "candidate"
-      ? `本周最值得关注的是「${top.topic}」。先找 5 位用户做人工验证，再决定是否开发。`
+      ? `本周最值得关注的是「${topicLabel(top.topic)}」。先找 5 位用户做人工验证，再决定是否开发。`
       : top.opportunity.verdict === "validate"
-        ? `本周信号最高的是「${top.topic}」，但证据仍不够。先打开原文并补足用户访谈。`
-        : `本周只有弱信号。最高项是「${top.topic}」，暂时不要进入开发。`;
+        ? `本周信号最高的是「${topicLabel(top.topic)}」，但证据仍不够。先打开原文并补足用户访谈。`
+        : `本周只有弱信号。最高项是「${topicLabel(top.topic)}」，暂时不要进入开发。`;
   const lines = [
     `# 📡 ${config.projectName || "Demand Radar"}`,
     "",
@@ -53,7 +62,7 @@ export function renderReport(clusters, config, quality = {}) {
     "### 你现在该做什么",
     "",
     ...(top ? [
-      `1. 打开排名第一的「${top.topic}」原始证据，确认它是不是目标用户本人遇到的问题。`,
+      `1. 打开排名第一的「${topicLabel(top.topic)}」原始证据，确认它是不是目标用户本人遇到的问题。`,
       `2. 补齐：${top.opportunity.missingEvidence.length ? top.opportunity.missingEvidence.join("、") : "5 次用户访谈"}。`,
       `3. 当前动作：**${topMeta.icon} ${topMeta.action}**。`
     ] : ["1. 不开发。", "2. 调整关键词或增加数据源后再观察一周。"]),
@@ -65,12 +74,12 @@ export function renderReport(clusters, config, quality = {}) {
   ];
   accepted.forEach((cluster, index) => {
     const meta = verdictMeta(cluster.opportunity.verdict);
-    lines.push(`| ${index + 1} | ${meta.icon} ${meta.label} | ${escapeMarkdown(cluster.topic)} | ${cluster.score}/100 | ${cluster.opportunity.soloFitScore}/100 | ${cluster.recentSignals} | ${cluster.uniqueAuthors} | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
+    lines.push(`| ${index + 1} | ${meta.icon} ${meta.label} | ${escapeMarkdown(topicLabel(cluster.topic))} | ${cluster.score}/100 | ${cluster.opportunity.soloFitScore}/100 | ${cluster.recentSignals} | ${cluster.uniqueAuthors} | ${difficultyLabel(cluster.opportunity.soloDifficulty)} |`);
   });
 
   for (const [index, cluster] of accepted.entries()) {
     const meta = verdictMeta(cluster.opportunity.verdict);
-    lines.push("", `## ${index + 1}. ${meta.icon} ${cluster.topic}`, "");
+    lines.push("", `## ${index + 1}. ${meta.icon} ${topicLabel(cluster.topic)}`, "");
     lines.push(`> **${meta.label}：${meta.action}**`);
     lines.push("", `**需求强度**　\`${scoreBar(cluster.score)}\``);
     lines.push(`**个人开发适配**　\`${scoreBar(cluster.opportunity.soloFitScore)}\``, "");
@@ -94,9 +103,10 @@ export function renderReport(clusters, config, quality = {}) {
     lines.push("", `<details><summary><strong>🔎 查看 ${Math.min(cluster.items.length, config.maxEvidencePerCluster || 10)} 条原始证据</strong></summary>`, "");
     for (const item of cluster.items.slice(0, config.maxEvidencePerCluster || 10)) {
       const quote = escapeMarkdown(item.evidenceQuote || item.pain || "");
+      const title = escapeMarkdown(item.sourceTitle || "");
       const date = item.publishedAt ? item.publishedAt.slice(0, 10) : "日期未知";
       const engagement = item.engagement || {};
-      lines.push(`- **${date} · ${item.platform}**：&ldquo;${quote}&rdquo; [打开原文 ↗](${item.sourceUrl}) · 👍 ${engagement.likes || 0} · 回复 ${engagement.comments || 0}`);
+      lines.push(`- **${date} · ${item.platform}${title ? ` · ${title}` : ""}**：&ldquo;${quote}&rdquo; [打开原文 ↗](${item.sourceUrl}) · 👍 ${engagement.likes || 0} · 回复 ${engagement.comments || 0}`);
     }
     lines.push("", "</details>");
     if (cluster.uniqueAuthors < 3) {
@@ -110,7 +120,7 @@ export function renderReport(clusters, config, quality = {}) {
   lines.push("**过滤结果**");
   lines.push("", ...(quality.rejectionReasons ? Object.entries(quality.rejectionReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `- ${reason}：${count}`) : ["- 本次未提供过滤统计。"]));
   lines.push("", "**阅读规则**");
-  lines.push("", "- 需求强度和个人开发适配度是两套分数，不能互相替代。", "- 需求分只用于同一批线索排序，不代表市场规模。", "- 🟢 必须同时满足：需求分至少 60、个人适配至少 70、3 位独立用户，并且没有硬性排除项。", "- 实时同步、自动退款/定价、会计税务、大规模抓取、广告自动化会被硬性降为观察。", "- 没有原文链接的结论不进入开发决策。", "", "</details>");
+  lines.push("", "- 需求强度和个人开发适配度是两套分数，不能互相替代。", "- 需求分只用于同一批线索排序，不代表市场规模。", `- 🟢 必须同时满足：需求分至少 60、个人适配至少 70、3 位独立用户、两个平台、近 ${config.freshnessDays || 30} 天至少 2 条证据，并且没有硬性排除项。`, "- 实时同步、自动退款/定价、会计税务、大规模抓取、广告自动化会被硬性降为观察。", "- 没有原文链接的结论不进入开发决策。", "", "</details>");
   lines.push("", "---", "", "### 💬 给雷达反馈", "", "在 Issue 下留言即可，例如：`需求 1：值得验证`、`需求 2：误报`、`下周继续观察库存问题`。");
   return lines.join("\n") + "\n";
 }

@@ -13,7 +13,9 @@ const signals = {
     /can you (?:clarify|explain|help)/i,
     /need help/i,
     /does (?:it|this) work/i,
-    /do you have (?:another|any other)/i
+    /do you have (?:another|any other)/i,
+    /can anyone (?:suggest|help)/i,
+    /any (?:fix|solution|workaround)/i
   ],
   friction: [
     /takes? (?:me )?(?:too long|\d+ (?:hours?|minutes?))/i,
@@ -27,7 +29,8 @@ const signals = {
     /struggl(?:e|ing|ed)|stubborn balance|quietly break/i,
     /cannot|can['’]?t|need help|problem with/i,
     /by hand/i,
-    /manually/i
+    /manually/i,
+    /\berrors?\b|failed|failure|validation failed|does not support|doesn['’]?t support/i
   ],
   workaround: [
     /spreadsheet|google sheets|excel/i,
@@ -60,13 +63,16 @@ function matchedCategories(text) {
 
 function contentGuards(text) {
   const compact = text.replace(/\s+/g, " ").trim();
-  const likelyPromotion = /(?:i|we) (?:built|made|launched|created)|our (?:app|tool|platform|service)|(?:install|download|subscribe|sign up|affiliate|promo code|dm me|check out my)/i.test(compact)
+  const likelyPromotion = /(?:i|we) (?:built|made|launched|created)|building (?:a|an|the) (?:app|tool|platform|service)|our (?:app|tool|platform|service)|app showcase|introducing .{0,40}(?:app|tool)|(?:install|download|subscribe|sign up|affiliate|promo code|dm me|check out my)/i.test(compact)
     && /(?:solve|tool|app|product|platform|service|business|link)/i.test(compact);
+  const researchSolicitation = /(?:the problem i keep hearing|after speaking with .{0,80}(?:merchants|agencies|teams)|what do you wish .{0,40} did|want honest feedback|i(?:'|’)?ve been reading .{0,80}(?:threads|posts).{0,80}(?:notic|pattern))/i.test(compact);
+  const likelyConsumerComplaint = /\b(?:i|we) (?:bought|purchased|ordered|return(?:ed)?|sent back)\b/i.test(compact)
+    && !/\b(?:my|our) (?:store|shop|business)|\bmerchant|shopify admin|our customers?\b/i.test(compact);
   const lowInformation = compact.length < 45
     || /^(?:great|good|nice|awesome|amazing|helpful) (?:video|content|tutorial)[.! ]*(?:thanks?|thank you)?[.! ]*$/i.test(compact)
     || /^(?:thanks?|thank you|first|love this|very helpful)[.! ]*$/i.test(compact);
   const suspiciousContactSpam = /(?:whats?app|telegram|contact (?:him|her|me)|guaranteed profit|earn \$?\d+|crypto recovery)/i.test(compact);
-  return { likelyPromotion, lowInformation, suspiciousContactSpam };
+  return { likelyPromotion, researchSolicitation, likelyConsumerComplaint, lowInformation, suspiciousContactSpam };
 }
 
 function severityFor(text, categories) {
@@ -97,11 +103,23 @@ function topicFor(item, config) {
 }
 
 function hasTopicEvidence(item, text, config, topic) {
-  if (item.platform !== "youtube") return true;
   const audience = (config.audiences || []).find((entry) => entry.id === item.audienceId);
   const terms = audience?.topicEvidenceKeywords?.[topic] || [];
   const lower = text.toLowerCase();
   return !terms.length || terms.some((term) => lower.includes(String(term).toLowerCase()));
+}
+
+function hasTaskAlignedPain(item, text, config, topic) {
+  const audience = (config.audiences || []).find((entry) => entry.id === item.audienceId);
+  const terms = audience?.topicEvidenceKeywords?.[topic] || [];
+  if (!terms.length) return true;
+  const hasTerm = (value) => terms.some((term) => String(value).toLowerCase().includes(String(term).toLowerCase()));
+  const painCategories = new Set(["need", "friction", "workaround", "money", "repetition"]);
+  const parts = text.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+  const alignedSentence = parts.some((part) => hasTerm(part) && matchedCategories(part).some((category) => painCategories.has(category)));
+  if (alignedSentence) return true;
+  const titleCanAnchor = item.platform !== "youtube" && hasTerm(item.title || "");
+  return titleCanAnchor && parts.some((part) => matchedCategories(part).some((category) => painCategories.has(category)));
 }
 
 export function heuristicAnalyze(item, config) {
@@ -116,14 +134,16 @@ export function heuristicAnalyze(item, config) {
     || categories.includes("specificity");
   const expertReply = likelyExpertReply(item, text);
   const isRealProblem = categories.length >= 2 && hasConcretePain && hasContext
-    && !item.authorIsCreator && !expertReply && !guards.likelyPromotion && !guards.lowInformation && !guards.suspiciousContactSpam;
+    && !item.authorIsCreator && !expertReply && !guards.likelyPromotion && !guards.researchSolicitation && !guards.likelyConsumerComplaint
+    && !guards.lowInformation && !guards.suspiciousContactSpam;
   const frequency = /daily|every day/i.test(text) ? "daily"
     : /weekly|every week|twice a week|every friday|every monday/i.test(text) ? "weekly"
       : /monthly|every month/i.test(text) ? "monthly" : "unknown";
   const paymentSignal = categories.includes("money") ? "explicit" : "none";
   const topic = topicFor(item, config);
   const topicEvidence = hasTopicEvidence(item, text, config, topic);
-  const acceptedProblem = isRealProblem && topicEvidence;
+  const taskAlignedPain = hasTaskAlignedPain(item, text, config, topic);
+  const acceptedProblem = isRealProblem && topicEvidence && taskAlignedPain;
   const confidence = acceptedProblem ? Math.min(0.55 + categories.length * 0.08, 0.91) : Math.min(0.2 + categories.length * 0.08, 0.55);
 
   return {
@@ -134,6 +154,7 @@ export function heuristicAnalyze(item, config) {
     topic,
     clusterKey: `${item.audienceId}:${topic}`.toLowerCase(),
     sourceUrl: item.sourceUrl,
+    sourceTitle: item.title || null,
     publishedAt: item.publishedAt,
     authorHash: item.authorHash,
     engagement: item.engagement,
@@ -151,9 +172,12 @@ export function heuristicAnalyze(item, config) {
     confidence: Number(confidence.toFixed(2)),
     rejectionReason: acceptedProblem ? null
       : isRealProblem && !topicEvidence ? "Comment does not mention the board task; topic exists only in video context"
+      : isRealProblem && !taskAlignedPain ? "Board task and operating pain are not connected in the source"
       : item.authorIsCreator ? "Comment was written by the video publisher"
         : expertReply ? "Likely educational or vendor-authored reply, not a first-person problem"
         : guards.likelyPromotion ? "Likely promotional or vendor-authored content"
+        : guards.researchSolicitation ? "Market-research solicitation, not a first-person operating problem"
+        : guards.likelyConsumerComplaint ? "Likely end-customer support complaint, not a merchant operating problem"
         : guards.suspiciousContactSpam ? "Likely contact or financial spam"
           : guards.lowInformation ? "Too little concrete information"
             : !hasContext ? "No concrete user or operating context"
@@ -195,10 +219,12 @@ async function llmAnalyze(item, config) {
   }
   const topic = topicFor(item, config);
   const topicEvidence = hasTopicEvidence(item, content, config, topic);
+  const taskAlignedPain = hasTaskAlignedPain(item, content, config, topic);
   const categories = matchedCategories(content);
   const guards = contentGuards(content);
   const expertReply = likelyExpertReply(item, content);
-  const accepted = Boolean(result.isRealProblem) && topicEvidence && !item.authorIsCreator && !expertReply && !guards.likelyPromotion && !guards.lowInformation && !guards.suspiciousContactSpam;
+  const accepted = Boolean(result.isRealProblem) && topicEvidence && taskAlignedPain && !item.authorIsCreator && !expertReply && !guards.likelyPromotion
+    && !guards.researchSolicitation && !guards.likelyConsumerComplaint && !guards.lowInformation && !guards.suspiciousContactSpam;
   return {
     id: `signal-${item.id}`,
     sourceId: item.id,
@@ -207,13 +233,14 @@ async function llmAnalyze(item, config) {
     topic,
     clusterKey: `${item.audienceId}:${topic}`.toLowerCase(),
     sourceUrl: item.sourceUrl,
+    sourceTitle: item.title || null,
     publishedAt: item.publishedAt,
     authorHash: item.authorHash,
     engagement: item.engagement,
     ...result,
     isRealProblem: accepted,
     severity: severityFor(content, categories),
-    rejectionReason: accepted ? null : !topicEvidence ? "Comment does not mention the board task; topic exists only in video context" : item.authorIsCreator ? "Comment was written by the video publisher" : expertReply ? "Likely educational or vendor-authored reply, not a first-person problem" : result.rejectionReason || (guards.likelyPromotion ? "Likely promotional or vendor-authored content" : "Failed deterministic quality guard"),
+    rejectionReason: accepted ? null : !topicEvidence ? "Comment does not mention the board task; topic exists only in video context" : !taskAlignedPain ? "Board task and operating pain are not connected in the source" : item.authorIsCreator ? "Comment was written by the video publisher" : expertReply ? "Likely educational or vendor-authored reply, not a first-person problem" : guards.researchSolicitation ? "Market-research solicitation, not a first-person operating problem" : guards.likelyConsumerComplaint ? "Likely end-customer support complaint, not a merchant operating problem" : result.rejectionReason || (guards.likelyPromotion ? "Likely promotional or vendor-authored content" : "Failed deterministic quality guard"),
     matchedCategories: categories,
     confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0)),
     analyzer: "llm"
@@ -282,6 +309,7 @@ export function buildOpportunityCard(cluster, config = {}) {
   const hardExclusions = hardExclusionsFor(cluster);
   const fitMinimum = config.soloFitMinimum ?? 70;
   const candidate = !hardExclusions.length && soloFitScore >= fitMinimum && cluster.score >= 60 && cluster.uniqueAuthors >= 3
+    && cluster.platforms.length >= 2 && cluster.recentSignals >= 2
     && (cluster.explicitPayments > 0 || cluster.frequent >= 2 || cluster.workarounds >= 2);
   const validate = !hardExclusions.length && soloFitScore >= fitMinimum && cluster.score >= 40 && cluster.uniqueAuthors >= 2;
   const verdict = candidate ? "candidate" : validate ? "validate" : "watch";

@@ -38,9 +38,9 @@
       },
       "topicEvidenceKeywords": {
         "product image compliance and batch processing": ["image", "photo", "picture", "resize", "background", "watermark", "crop"],
-        "product listing audit and optimization": ["listing", "title", "description", "attribute", "alt text", "keyword"],
+        "product listing audit and optimization": ["product listing", "product title", "product description", "meta description", "seo title", "listing optimization"],
         "product catalog and CSV cleanup": ["csv", "sku", "variant", "catalog", "bulk edit", "image url"],
-        "review and return reason analysis": ["review", "return reason", "refund reason", "complaint", "customer question", "faq"]
+        "review and return reason analysis": ["product review", "return reason", "refund reason", "return request", "customer complaint"]
       },
       "painPhrases": [
         "is there a tool", "looking for a tool", "takes too long", "too expensive",
@@ -48,6 +48,16 @@
       ],
       "reddit": {
         "subreddits": ["shopify", "EtsySellers", "ecommerce", "AmazonSeller", "smallbusiness"]
+      },
+      "shopifyCommunity": {
+        "enabled": true,
+        "maxTopicsPerQuery": 8,
+        "topicSearchQueries": {
+          "product image compliance and batch processing": ["\"product image\" resize", "\"image upload\" error", "\"variant image\""],
+          "product listing audit and optimization": ["\"product title\"", "\"product description\"", "\"product SEO\""],
+          "product catalog and CSV cleanup": ["\"CSV import\"", "\"duplicate SKU\"", "\"variant CSV\""],
+          "review and return reason analysis": ["\"return reason\"", "\"product review\"", "\"customer complaint\""]
+        }
       },
       "youtube": {
         "enabled": true,

@@ -2,7 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { analyzeItems, clusterSignals } from "./analyzer.mjs";
-import { collectReddit, collectYouTube, normalizeImported } from "./collectors.mjs";
+import { collectReddit, collectShopifyCommunity, collectYouTube, normalizeImported } from "./collectors.mjs";
 import { loadConfig, loadEnv, readJsonl, ROOT, writeJsonl } from "./lib.mjs";
 import { saveReport } from "./report.mjs";
 
@@ -17,11 +17,12 @@ async function collect(config) {
   // Keep explicit manual imports, but refresh platform data so stale and demo
   // records never leak into the current 30-day report.
   const existing = (await readJsonl(RAW_FILE)).filter((item) => item.platform === "imported" && !item.id.startsWith("demo-"));
-  const [reddit, youtube] = await Promise.all([
+  const [reddit, shopifyCommunity, youtube] = await Promise.all([
     collectReddit(config, log),
+    collectShopifyCommunity(config, log),
     collectYouTube(config, log)
   ]);
-  const fresh = [...reddit, ...youtube];
+  const fresh = [...reddit, ...shopifyCommunity, ...youtube];
   await writeJsonl(RAW_FILE, [...existing, ...fresh]);
   log(`采集完成：新增/更新 ${fresh.length} 条，当前共 ${[...new Map([...existing, ...fresh].map((item) => [item.id, item])).values()].length} 条`);
 }
@@ -65,6 +66,7 @@ async function doctor() {
   const checks = [
     ["config.json", true, "真实研究配置"],
     ["YOUTUBE_API_KEY", Boolean(process.env.YOUTUBE_API_KEY), "YouTube 视频与评论采集"],
+    ["Shopify Community", true, "公开主题首帖采集，不需要 Key"],
     ["REDDIT_CLIENT_ID", Boolean(process.env.REDDIT_CLIENT_ID), "Reddit OAuth client id"],
     ["REDDIT_CLIENT_SECRET", Boolean(process.env.REDDIT_CLIENT_SECRET), "Reddit OAuth client secret"],
     ["REDDIT_USER_AGENT", Boolean(process.env.REDDIT_USER_AGENT && !process.env.REDDIT_USER_AGENT.includes("your-reddit-username")), "Reddit 要求的真实 User-Agent"],
@@ -74,15 +76,11 @@ async function doctor() {
   for (const [name, ok, purpose] of checks) {
     console.log(`${ok ? "✓" : "○"} ${name.padEnd(22)} ${purpose}`);
   }
-  const redditReady = checks.slice(2, 5).every((entry) => entry[1]);
+  const redditReady = checks.slice(3, 6).every((entry) => entry[1]);
   const youtubeReady = checks[1][1];
   console.log("\n结论：");
-  if (redditReady || youtubeReady) {
-    console.log(`可以运行 npm run run。可用数据源：${[redditReady && "Reddit", youtubeReady && "YouTube"].filter(Boolean).join(" + ")}`);
-  } else {
-    console.log("尚无可用的真实数据源。至少配置 YouTube，或完整配置 Reddit 的三个字段。");
-  }
-  if (!checks[5][1]) console.log("未配置 LLM，将使用保守的本地规则分析器，不影响采集。");
+  console.log(`可以运行 npm run run。可用数据源：${["Shopify Community", redditReady && "Reddit", youtubeReady && "YouTube"].filter(Boolean).join(" + ")}`);
+  if (!checks[6][1]) console.log("未配置 LLM，将使用保守的本地规则分析器，不影响采集。");
 }
 
 async function main() {

@@ -46,6 +46,21 @@ test("accepts a domain-specific integration failure", () => {
   assert.equal(result.isRealProblem, true);
 });
 
+test("accepts a concrete Shopify Community CSV failure", () => {
+  const focusedConfig = {
+    audiences: [{
+      id: "merchants",
+      topics: ["product catalog and CSV cleanup"],
+      topicEvidenceKeywords: { "product catalog and CSV cleanup": ["csv", "sku", "variant", "catalog"] }
+    }]
+  };
+  const forumItem = item("16", "Our product CSV import failed with a validation error. Can anyone suggest a workaround?", "shopify-community");
+  forumItem.topic = "product catalog and CSV cleanup";
+  const result = heuristicAnalyze(forumItem, focusedConfig);
+  assert.equal(result.isRealProblem, true);
+  assert.match(result.evidenceQuote, /failed|workaround/i);
+});
+
 test("accepts a confusing integration question", () => {
   const result = heuristicAnalyze(item("6", "The Xero subscription model is really confusing. Does it work without the Shopify plugin? Can you clarify how to connect it?"), config);
   assert.equal(result.isRealProblem, true);
@@ -55,6 +70,20 @@ test("rejects vendor self-promotion framed as pain", () => {
   const result = heuristicAnalyze(item("7", "Inventory was my real pain for years, so I built StockSmart to solve this problem. This powerful tool helps your business avoid stockouts."), config);
   assert.equal(result.isRealProblem, false);
   assert.match(result.rejectionReason, /promotional/);
+});
+
+test("rejects a founder soliciting problems for a tool", () => {
+  const forumItem = item("17", "The problem I keep hearing from merchants is messy CSV files. I am building a tool and want honest feedback from store owners.", "shopify-community");
+  const result = heuristicAnalyze(forumItem, config);
+  assert.equal(result.isRealProblem, false);
+  assert.match(result.rejectionReason, /Market-research|promotional/);
+});
+
+test("rejects an end-customer refund dispute as merchant demand", () => {
+  const forumItem = item("18", "I returned the computer after it failed and paid $200 shipping, but the store denied my refund request.", "shopify-community");
+  const result = heuristicAnalyze(forumItem, config);
+  assert.equal(result.isRealProblem, false);
+  assert.match(result.rejectionReason, /end-customer/);
 });
 
 test("rejects contact spam even when it mentions a problem", () => {

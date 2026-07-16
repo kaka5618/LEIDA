@@ -9,6 +9,75 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+function plainText(html = "") {
+  return String(html)
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/p>|<\/li>|<\/blockquote>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function normalizeShopifyTopic(payload, topic, query) {
+  const firstPost = payload.post_stream?.posts?.find((post) => post.post_number === 1);
+  if (!firstPost) return null;
+  return {
+    id: `shopify-community-${payload.id}`,
+    platform: "shopify-community",
+    audienceId: "small-overseas-ecommerce-sellers",
+    topic,
+    query,
+    community: payload.category_name ? `Shopify Community · ${payload.category_name}` : "Shopify Community",
+    publishedAt: firstPost.created_at || payload.created_at,
+    sourceUrl: `https://community.shopify.com/t/${payload.slug}/${payload.id}`,
+    title: plainText(payload.title),
+    text: plainText(firstPost.cooked || firstPost.raw || ""),
+    authorHash: authorHash(firstPost.username),
+    engagement: { likes: firstPost.actions_summary?.find((entry) => entry.id === 2)?.count || 0, comments: Math.max((payload.posts_count || 1) - 1, 0) }
+  };
+}
+
+export async function collectShopifyCommunity(config, onProgress = () => {}) {
+  const rows = [];
+  const seenTopicIds = new Set();
+  const cutoffDate = daysAgoIso(config.days || 90).slice(0, 10);
+  const headers = { "user-agent": "demand-radar/0.1 public-research" };
+
+  for (const audience of config.audiences || []) {
+    const source = audience.shopifyCommunity;
+    if (!source || source.enabled === false) continue;
+    for (const topic of audience.topics || []) {
+      const queries = source.topicSearchQueries?.[topic] || [topic];
+      for (const baseQuery of queries) {
+        const query = `${baseQuery} after:${cutoffDate} in:first order:latest`;
+        const params = new URLSearchParams({ q: query });
+        const search = await fetchJson(`https://community.shopify.com/search.json?${params}`, { headers });
+        const posts = (search.posts || [])
+          .filter((post) => post.post_number === 1 && !seenTopicIds.has(post.topic_id))
+          .slice(0, source.maxTopicsPerQuery || 8);
+        for (const post of posts) {
+          seenTopicIds.add(post.topic_id);
+          const payload = await fetchJson(`https://community.shopify.com/t/${post.topic_id}.json`, { headers });
+          const normalized = normalizeShopifyTopic(payload, topic, baseQuery);
+          if (normalized && new Date(normalized.publishedAt).getTime() >= new Date(`${cutoffDate}T00:00:00Z`).getTime()) rows.push({ ...normalized, audienceId: audience.id });
+          await sleep(100);
+        }
+        onProgress(`Shopify Community: ${baseQuery}`);
+        await sleep(150);
+      }
+    }
+  }
+  return rows;
+}
+
 async function redditToken() {
   const id = process.env.REDDIT_CLIENT_ID;
   const secret = process.env.REDDIT_CLIENT_SECRET;
